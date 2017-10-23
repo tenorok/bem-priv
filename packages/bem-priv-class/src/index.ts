@@ -1,27 +1,9 @@
-export interface IMods extends Record<string, string | boolean | number> {}
+import { Content, IAttrs, IBemjson, IMix, IMods } from './iBem';
+import { BemjsonRenderer, IBemjsonRender } from './iRender';
 
-export interface IAttrs extends Record<string, string | boolean | number> {}
+export type BlockParams = { jsonRenders?: BemjsonRenderer[]; params?: object; };
 
-export interface IMix {
-    block?: string;
-    mods?: IMods;
-    elem?: string;
-    elemMods?: IMods;
-    js?: object;
-}
-
-export type Content = IBemjson | string | number;
-
-export interface IBemjson extends IMix, Record<string, any> {
-    attrs?: IAttrs;
-    mix?: IMix[];
-    content?: Content[];
-    bem?: boolean;
-    cls?: string;
-    tag?: string;
-}
-
-export abstract class Block {
+export abstract class Block implements IBemjsonRender {
     private static readonly MODS_KEY: string = 'mods';
     private static readonly MIX_KEY: string = 'mix';
     private static readonly ATTRS_KEY: string = 'attrs';
@@ -32,8 +14,14 @@ export abstract class Block {
 
     private _bemjson: IBemjson;
 
-    constructor(params?: object) {
+    private _jsonRenders: BemjsonRenderer[];
+
+    constructor(args: BlockParams = {}) {
+        const { jsonRenders = [], ...params }: BlockParams = args;
+
         this.params = Object.assign(this.defaultParams, params);
+
+        this._jsonRenders = jsonRenders;
 
         this._bemjson = {
             block: this.block
@@ -49,6 +37,14 @@ export abstract class Block {
     }
 
     public json(): IBemjson {
+        this._jsonRenders.forEach((render: BemjsonRenderer) => {
+            if (render instanceof Function) {
+                this.bemjson = render(this.bemjson);
+            } else {
+                this.bemjson = render.json(this.bemjson);
+            }
+        });
+
         return this.bemjson;
     }
 
@@ -98,6 +94,10 @@ export abstract class Block {
 
     protected get bemjson(): IBemjson {
         return this._bemjson;
+    }
+
+    protected set bemjson(bemjson: IBemjson) {
+        this._bemjson = bemjson;
     }
 
     private _getProp(key: string): object | object[] {
